@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SBX Barista Quotes</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+
+        header {
+            text-align: center;
+            padding: 20px;
+            background-color: #00704A;
+            color: white;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .header-subtitle {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+
+        .add-quote-btn {
+            background-color: #00704A;
+            color: white;
+            padding: 10px 20px;
+            border: 2px solid #00704A;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 auto 20px;
+            display: block;
+            transition: all 0.2s;
+        }
+
+        .add-quote-btn:hover {
+            background-color: white;
+            color: #00704A;
+        }
+
+        .quote-form {
+            background: white;
+            padding: 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, padding 0.3s ease-out, margin 0.3s ease-out;
+        }
+
+        .quote-form.expanded {
+            max-height: 500px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .char-count {
+            float: right;
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button[type="submit"] {
+            background-color: #00704A;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button[type="submit"]:hover {
+            background-color: #005c3e;
+        }
+
+        .quotes-container {
+            display: grid;
+            gap: 20px;
+        }
+
+        .quote-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .quote-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .quote-text {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        .quote-location {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .quote-date {
+            color: #999;
+            font-size: 0.8em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        #loadingIndicator {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>SBX Barista Quotes</h1>
+        <div class="header-subtitle">real quotes by real baristas</div>
+    </header>
+
+    <button class="add-quote-btn" onclick="toggleForm()">Add a Quote</button>
+
+    <div class="quote-form" id="quoteForm">
+        <form id="quoteFormElement">
+            <div class="form-group">
+                <label for="quote">Quote:</label>
+                <textarea id="quote" required rows="3" maxlength="1000" oninput="updateCharCount(this)"></textarea>
+                <div class="char-count"><span id="charCount">0</span>/1000</div>
+            </div>
+            <div class="form-group">
+                <label for="city">City:</label>
+                <input type="text" id="city" required>
+            </div>
+            <div class="form-group">
+                <label for="state">State:</label>
+                <input type="text" id="state" required maxlength="2">
+            </div>
+            <button type="submit">Submit Quote</button>
+        </form>
+    </div>
+
+    <div id="loadingIndicator">Loading quotes...</div>
+    <div id="quotesContainer" class="quotes-container"></div>
+
+    <script>
+        const API_URL = '/api';
+        let currentPage = 0;
+        let loading = false;
+        
+        function updateCharCount(textarea) {
+            const count = textarea.value.length;
+            document.getElementById('charCount').textContent = count;
+        }
+        
+        function toggleForm() {
+            const form = document.getElementById('quoteForm');
+            form.classList.toggle('expanded');
+            const btn = document.querySelector('.add-quote-btn');
+            btn.textContent = form.classList.contains('expanded') ? 'Close' : 'Add a Quote';
+        }
+        
+        async function loadQuotes() {
+            if (loading) return;
+            loading = true;
+            
+            document.getElementById('loadingIndicator').style.display = 'block';
+
+            try {
+                const response = await fetch(`${API_URL}/quotes?page=${currentPage}`);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                const quotes = await response.json();
+                
+                if (quotes.length > 0) {
+                    renderQuotes(quotes);
+                    currentPage++;
+                }
+            } catch (error) {
+                console.error('Error loading quotes:', error);
+            } finally {
+                loading = false;
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+        }
+
+        document.getElementById('quoteFormElement').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitButton = this.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Submitting...';
+            
+            const newQuote = {
+                text: document.getElementById('quote').value,
+                city: document.getElementById('city').value,
+                state: document.getElementById('state').value.toUpperCase(),
+            };
+            
+            try {
+                const response = await fetch(`${API_URL}/quotes`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(newQuote),
+                });
+                
+                if (response.ok) {
+                    currentPage = 0;
+                    document.getElementById('quotesContainer').innerHTML = '';
+                    await loadQuotes();
+                    
+                    this.reset();
+                    document.getElementById('charCount').textContent = '0';
+                    toggleForm();
+                } else {
+                    throw new Error('Failed to submit quote');
+                }
+            } catch (error) {
+                console.error('Error submitting quote:', error);
+                alert('Failed to submit quote. Please try again.');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Submit Quote';
+            }
+        });
+
+        function renderQuotes(quotes) {
+            const container = document.getElementById('quotesContainer');
+            
+            quotes.forEach(quote => {
+                const quoteElement = document.createElement('div');
+                quoteElement.className = 'quote-card';
+                quoteElement.innerHTML = `
+                    <div class="quote-text">"${quote.text}"</div>
+                    <div class="quote-location">${quote.city}, ${quote.state}</div>
+                    <div class="quote-date">${quote.date}</div>
+                `;
+                container.appendChild(quoteElement);
+            });
+        }
+
+        window.addEventListener('scroll', () => {
+            if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 100) {
+                loadQuotes();
+            }
+        });
+
+        // Initial load
+        loadQuotes();
+    </script>
+</body>
+</html>
